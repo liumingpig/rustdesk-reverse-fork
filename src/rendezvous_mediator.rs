@@ -310,6 +310,18 @@ impl RendezvousMediator {
     }
 
     pub async fn start_all() {
+        if let Some(endpoint) = crate::server::take_reverse_endpoint() {
+            log::info!("Reverse mode: connecting to {}", endpoint);
+            let server = new_server();
+            loop {
+                if let Err(err) =
+                    crate::server::create_reverse_connection(server.clone(), endpoint.clone()).await
+                {
+                    log::error!("Reverse connection failed: {err:?}");
+                }
+                sleep(3.).await;
+            }
+        }
         crate::test_nat_type();
         if config::is_outgoing_only() {
             loop {
