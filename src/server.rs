@@ -109,6 +109,15 @@ lazy_static::lazy_static! {
     // Now we use this [`CLIENT_SERVER`] to do following operations:
     // - record local audio, and send to remote
     pub static ref CLIENT_SERVER: ServerPtr = new();
+    static ref REVERSE_ENDPOINT: Mutex<Option<String>> = Mutex::new(None);
+}
+
+pub fn set_reverse_endpoint(endpoint: String) {
+    *REVERSE_ENDPOINT.lock().unwrap() = Some(endpoint);
+}
+
+pub fn take_reverse_endpoint() -> Option<String> {
+    REVERSE_ENDPOINT.lock().unwrap().take()
 }
 
 pub struct Server {
@@ -217,6 +226,17 @@ pub async fn create_tcp_connection(
     secure: bool,
     meta: ConnectionMeta,
 ) -> ResultType<()> {
+    create_tcp_connection_inner(server, stream, addr, secure, meta, false).await
+}
+
+async fn create_tcp_connection_inner(
+    server: ServerPtr,
+    stream: Stream,
+    addr: SocketAddr,
+    secure: bool,
+    meta: ConnectionMeta,
+    strict_secure: bool,
+) -> ResultType<()> {
     let mut stream = stream;
     // The address the connection layer keys on, whitelist and admission alike.
     let addr = hbb_common::try_into_v4(addr);
@@ -229,7 +249,7 @@ pub async fn create_tcp_connection(
     // Before the handshake, so its read is bounded too; lifted again at authorization.
     stream.set_max_packet_length(MAX_UNAUTHORIZED_MESSAGE);
     tokio::select! {
-        handshake = identity_handshake(&mut stream, secure) => handshake?,
+        handshake = identity_handshake(&mut stream, secure, strict_secure) => handshake?,
         _ = unauthorized.evicted() => {
             bail!("evicted to make room for a newer unauthenticated connection");
         }
@@ -269,12 +289,24 @@ pub async fn create_reverse_connection(server: ServerPtr, endpoint: String) -> R
         .with_context(|| format!("invalid reverse endpoint: {endpoint}"))?;
     log::info!("Reverse connecting to {endpoint}");
     let stream = socket_client::connect_tcp(endpoint, CONNECT_TIMEOUT).await?;
-    create_tcp_connection(server, stream, peer_addr, true, ConnectionMeta::default()).await
+    create_tcp_connection_inner(
+        server,
+        stream,
+        peer_addr,
+        true,
+        ConnectionMeta::default(),
+        true,
+    )
+    .await
 }
 
 /// Our signed identity goes out and, when `secure`, the controller's reply keys `stream`.
 /// Separate so it can be raced against the connection's eviction.
-async fn identity_handshake(stream: &mut Stream, secure: bool) -> ResultType<()> {
+async fn identity_handshake(
+    stream: &mut Stream,
+    secure: bool,
+    strict_secure: bool,
+) -> ResultType<()> {
     let (sk, pk) = Config::get_key_pair();
     if secure && pk.len() == sign::PUBLICKEYBYTES && sk.len() == sign::SECRETKEYBYTES {
         let mut sk_ = [0u8; sign::SECRETKEYBYTES];
@@ -345,6 +377,9 @@ async fn identity_handshake(stream: &mut Stream, secure: bool) -> ResultType<()>
                                 },
                             )?;
                         } else if pk.asymmetric_value.is_empty() {
+                            if strict_secure {
+                                bail!("strict secure handshake rejected an insecure peer");
+                            }
                             Config::set_key_confirmed(false);
                             log::info!("Force to update pk");
                         } else {
