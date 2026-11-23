@@ -388,6 +388,13 @@ impl Client {
         (i32, String),
     )> {
         debug_assert!(peer == interface.get_id());
+        if let Some((stream, pk)) = take_reverse_stream(peer) {
+            log::info!("Using stashed reverse stream for {peer}");
+            return Ok((
+                (stream, true, Some(pk), None, "TCP"),
+                (0, String::new()),
+            ));
+        }
         interface.update_direct(None);
         interface.update_received(false);
         match Self::_start(peer, key, token, conn_type, interface.clone()).await {
@@ -5616,6 +5623,41 @@ pub async fn reverse_accept(
     let id = reverse_secure_handshake(&mut conn, &pinned_pk, expected_id).await?;
     conn.set_max_packet_length(usize::MAX);
     Ok((conn, id))
+}
+
+lazy_static::lazy_static! {
+    static ref REVERSE_PENDING: Mutex<Option<(String, Stream, Vec<u8>)>> = Mutex::new(None);
+}
+
+/// Hand a secured reverse stream to the next session started for `peer_id`.
+pub fn stash_reverse_stream(peer_id: String, stream: Stream, pk: Vec<u8>) {
+    *REVERSE_PENDING.lock().unwrap() = Some((peer_id, stream, pk));
+}
+
+fn take_reverse_stream(peer_id: &str) -> Option<(Stream, Vec<u8>)> {
+    let mut pending = REVERSE_PENDING.lock().unwrap();
+    if pending
+        .as_ref()
+        .map(|(id, _, _)| id == peer_id)
+        .unwrap_or(false)
+    {
+        let (_, stream, pk) = pending.take().unwrap();
+        Some((stream, pk))
+    } else {
+        None
+    }
+}
+
+/// Listen once, secure the accepted reverse connection, and stash it for the
+/// session that the UI will start with the returned peer ID.
+pub async fn reverse_listen_and_stash(
+    port: u16,
+    pinned_pk: sign::PublicKey,
+    expected_id: Option<String>,
+) -> ResultType<String> {
+    let (stream, id) = reverse_listen(port, pinned_pk, expected_id).await?;
+    stash_reverse_stream(id.clone(), stream, pinned_pk.0.to_vec());
+    Ok(id)
 }
 
 async fn reverse_secure_handshake(
