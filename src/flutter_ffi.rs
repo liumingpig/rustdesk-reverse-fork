@@ -1194,7 +1194,10 @@ pub fn main_get_connect_status() -> String {
     }
 }
 
-pub async fn main_reverse_listen(port: i32, pinned_pk: String) -> ResultType<String> {
+pub async fn main_reverse_listen(
+    port: i32,
+    pinned_pk: String,
+) -> hbb_common::anyhow::Result<String> {
     if port <= 0 || port > 65535 {
         hbb_common::anyhow::bail!("invalid reverse listen port: {port}");
     }
