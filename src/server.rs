@@ -259,6 +259,19 @@ pub async fn create_tcp_connection(
     Ok(())
 }
 
+/// Connect outbound to a controller that is listening for a reverse session.
+///
+/// The controller owns the transport listener, but the controlled side remains the
+/// application-layer server: it runs the same identity handshake and Connection handler.
+pub async fn create_reverse_connection(server: ServerPtr, endpoint: String) -> ResultType<()> {
+    let peer_addr: SocketAddr = endpoint
+        .parse()
+        .with_context(|| format!("invalid reverse endpoint: {endpoint}"))?;
+    log::info!("Reverse connecting to {endpoint}");
+    let stream = socket_client::connect_tcp(endpoint, CONNECT_TIMEOUT).await?;
+    create_tcp_connection(server, stream, peer_addr, true, ConnectionMeta::default()).await
+}
+
 /// Our signed identity goes out and, when `secure`, the controller's reply keys `stream`.
 /// Separate so it can be raced against the connection's eviction.
 async fn identity_handshake(stream: &mut Stream, secure: bool) -> ResultType<()> {
