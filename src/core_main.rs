@@ -382,6 +382,15 @@ pub fn core_main() -> Option<CoreMainAction> {
             log::info!("start --service");
             crate::start_os_service();
             return None;
+        } else if args[0] == "--reverse-connect" {
+            if args.len() != 2 {
+                log::error!("Usage: --reverse-connect <ip:port>");
+                return None;
+            }
+            log::info!("start --reverse-connect to {}", &args[1]);
+            crate::set_reverse_endpoint(args[1].clone());
+            crate::start_server(true, false);
+            return None;
         } else if args[0] == "--server" {
             log::info!("start --server with user {}", crate::username());
             #[cfg(target_os = "linux")]
