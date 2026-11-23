@@ -388,6 +388,13 @@ impl Client {
         (i32, String),
     )> {
         debug_assert!(peer == interface.get_id());
+        if let Some((stream, pk)) = take_reverse_stream(peer) {
+            log::info!("Using stashed reverse stream for {peer}");
+            return Ok((
+                (stream, true, Some(pk), None, "TCP"),
+                (0, String::new()),
+            ));
+        }
         interface.update_direct(None);
         interface.update_received(false);
         match Self::_start(peer, key, token, conn_type, interface.clone()).await {
@@ -5588,6 +5595,113 @@ async fn udp_nat_connect(
             anyhow!(err)
         })?;
     Ok((res.1, Some(res.0), typ))
+}
+
+/// Listen for a controlled side that connects to us, then run the client-side
+/// secure handshake against its pinned identity. Any mismatch is fatal; there is
+/// deliberately no non-secure fallback on this path.
+pub async fn reverse_listen(
+    port: u16,
+    pinned_pk: sign::PublicKey,
+    expected_id: Option<String>,
+) -> ResultType<(Stream, String)> {
+    let listener = hbb_common::tokio::net::TcpListener::bind(("::", port)).await?;
+    reverse_accept(listener, pinned_pk, expected_id.as_deref()).await
+}
+
+/// Accept one reverse transport connection and establish the secure session.
+/// Returns the encrypted stream and the controlled side's signed ID.
+pub async fn reverse_accept(
+    listener: hbb_common::tokio::net::TcpListener,
+    pinned_pk: sign::PublicKey,
+    expected_id: Option<&str>,
+) -> ResultType<(Stream, String)> {
+    let (stream, _) = listener.accept().await?;
+    let local_addr = stream.local_addr()?;
+    let mut conn = Stream::from(stream, local_addr);
+    conn.set_max_packet_length(1024 * 1024);
+    let id = reverse_secure_handshake(&mut conn, &pinned_pk, expected_id).await?;
+    conn.set_max_packet_length(usize::MAX);
+    Ok((conn, id))
+}
+
+lazy_static::lazy_static! {
+    static ref REVERSE_PENDING: Mutex<Option<(String, Stream, Vec<u8>)>> = Mutex::new(None);
+}
+
+/// Hand a secured reverse stream to the next session started for `peer_id`.
+pub fn stash_reverse_stream(peer_id: String, stream: Stream, pk: Vec<u8>) {
+    *REVERSE_PENDING.lock().unwrap() = Some((peer_id, stream, pk));
+}
+
+fn take_reverse_stream(peer_id: &str) -> Option<(Stream, Vec<u8>)> {
+    let mut pending = REVERSE_PENDING.lock().unwrap();
+    if pending
+        .as_ref()
+        .map(|(id, _, _)| id == peer_id)
+        .unwrap_or(false)
+    {
+        let (_, stream, pk) = pending.take().unwrap();
+        Some((stream, pk))
+    } else {
+        None
+    }
+}
+
+/// Listen once, secure the accepted reverse connection, and stash it for the
+/// session that the UI will start with the returned peer ID.
+pub async fn reverse_listen_and_stash(
+    port: u16,
+    pinned_pk: sign::PublicKey,
+    expected_id: Option<String>,
+) -> ResultType<String> {
+    let (stream, id) = reverse_listen(port, pinned_pk, expected_id).await?;
+    stash_reverse_stream(id.clone(), stream, pinned_pk.0.to_vec());
+    Ok(id)
+}
+
+async fn reverse_secure_handshake(
+    conn: &mut Stream,
+    pinned_pk: &sign::PublicKey,
+    expected_id: Option<&str>,
+) -> ResultType<String> {
+    let bytes = match timeout(READ_TIMEOUT, conn.next()).await? {
+        Some(res) => res?,
+        None => bail!("reverse handshake: connection closed"),
+    };
+    let msg_in = Message::parse_from_bytes(&bytes)
+        .map_err(|err| anyhow!("reverse handshake: invalid message: {err}"))?;
+    let Some(message::Union::SignedId(si)) = msg_in.union else {
+        bail!("reverse handshake: expected SignedId");
+    };
+    let (id, their_pk_b, _signed_fp, kx_version) = decode_id_pk_dtls(&si.id, pinned_pk)
+        .map_err(|err| anyhow!("reverse handshake: pinned identity rejected: {err}"))?;
+    if let Some(expected) = expected_id {
+        if id != expected {
+            bail!("reverse handshake: peer id mismatch: {id} != {expected}");
+        }
+    }
+    let (asymmetric_value, symmetric_value, key) = create_symmetric_key_msg(their_pk_b);
+    let picked = hbb_common::tcp::kx_version_for(kx_version);
+    let mut msg_out = Message::new();
+    msg_out.set_public_key(PublicKey {
+        asymmetric_value: asymmetric_value.clone(),
+        symmetric_value,
+        kx_version: picked,
+        ..Default::default()
+    });
+    timeout(CONNECT_TIMEOUT, conn.send(&msg_out)).await??;
+    conn.set_negotiated_key(
+        key,
+        true,
+        &hbb_common::tcp::KxTranscript {
+            initiator_pk: &asymmetric_value,
+            responder_pk: &their_pk_b,
+            advertised: kx_version,
+            picked,
+        },
+    )?;
+    Ok(id)
 }
 
 #[cfg(test)]
