@@ -1194,6 +1194,28 @@ pub fn main_get_connect_status() -> String {
     }
 }
 
+pub async fn main_reverse_listen(port: i32, pinned_pk: String) -> ResultType<String> {
+    if port <= 0 || port > 65535 {
+        hbb_common::anyhow::bail!("invalid reverse listen port: {port}");
+    }
+    let pk = hbb_common::sodiumoxide::base64::decode(&pinned_pk)
+        .map_err(|e| hbb_common::anyhow::anyhow!("invalid pinned public key: {e}"))?;
+    if pk.len() != hbb_common::sodiumoxide::crypto::sign::PUBLICKEYBYTES {
+        hbb_common::anyhow::bail!(
+            "pinned public key must be {} bytes",
+            hbb_common::sodiumoxide::crypto::sign::PUBLICKEYBYTES
+        );
+    }
+    let mut pk_bytes = [0u8; hbb_common::sodiumoxide::crypto::sign::PUBLICKEYBYTES];
+    pk_bytes.copy_from_slice(&pk);
+    crate::client::reverse_listen_and_stash(
+        port as u16,
+        hbb_common::sodiumoxide::crypto::sign::PublicKey(pk_bytes),
+        None,
+    )
+    .await
+}
+
 pub fn main_check_connect_status() {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     start_option_status_sync(); // avoid multi calls
