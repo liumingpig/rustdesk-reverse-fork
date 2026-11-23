@@ -1194,15 +1194,18 @@ pub fn main_get_connect_status() -> String {
     }
 }
 
-pub async fn main_reverse_listen(
+pub fn main_reverse_listen(
     port: i32,
     pinned_pk: String,
 ) -> hbb_common::anyhow::Result<String> {
     if port <= 0 || port > 65535 {
         hbb_common::anyhow::bail!("invalid reverse listen port: {port}");
     }
-    let pk = hbb_common::sodiumoxide::base64::decode(&pinned_pk)
-        .map_err(|e| hbb_common::anyhow::anyhow!("invalid pinned public key: {e}"))?;
+    let pk = hbb_common::sodiumoxide::base64::decode(
+        &pinned_pk,
+        hbb_common::sodiumoxide::base64::Variant::Original,
+    )
+    .map_err(|_| hbb_common::anyhow::anyhow!("invalid pinned public key"))?;
     if pk.len() != hbb_common::sodiumoxide::crypto::sign::PUBLICKEYBYTES {
         hbb_common::anyhow::bail!(
             "pinned public key must be {} bytes",
@@ -1211,12 +1214,13 @@ pub async fn main_reverse_listen(
     }
     let mut pk_bytes = [0u8; hbb_common::sodiumoxide::crypto::sign::PUBLICKEYBYTES];
     pk_bytes.copy_from_slice(&pk);
-    crate::client::reverse_listen_and_stash(
+    let rt = hbb_common::tokio::runtime::Runtime::new()
+        .map_err(|e| hbb_common::anyhow::anyhow!("failed to start reverse runtime: {e}"))?;
+    rt.block_on(crate::client::reverse_listen_and_stash(
         port as u16,
         hbb_common::sodiumoxide::crypto::sign::PublicKey(pk_bytes),
         None,
-    )
-    .await
+    ))
 }
 
 pub fn main_check_connect_status() {
