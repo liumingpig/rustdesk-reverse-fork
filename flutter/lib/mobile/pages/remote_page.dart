@@ -132,7 +132,9 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       isSharedPassword: widget.isSharedPassword,
       forceRelay: widget.forceRelay,
     );
-    if (widget.viewOnly) {
+    if (widget.viewOnly &&
+        !bind.sessionGetToggleOptionSync(
+            sessionId: sessionId, arg: 'view-only')) {
       bind.sessionToggleOption(sessionId: sessionId, value: 'view-only');
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
