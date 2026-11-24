@@ -638,6 +638,12 @@ jobs:
           prefix-key: rustdesk-lib-cache-android # TODO: drop '-android' part after caches are invalidated
           key: ${{ matrix.job.target }}
 
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - name: Build rustdesk lib
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
@@ -677,7 +683,6 @@ jobs:
       - name: Build rustdesk
         shell: bash
         env:
-          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
         run: |
           export PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:$PATH
           # Increase Gradle JVM memory for CI builds
