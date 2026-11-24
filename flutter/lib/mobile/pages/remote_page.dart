@@ -131,12 +131,8 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       password: widget.password,
       isSharedPassword: widget.isSharedPassword,
       forceRelay: widget.forceRelay,
+      viewOnly: widget.viewOnly,
     );
-    if (widget.viewOnly &&
-        !bind.sessionGetToggleOptionSync(
-            sessionId: sessionId, arg: 'view-only')) {
-      bind.sessionToggleOption(sessionId: sessionId, value: 'view-only');
-    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
       gFFI.dialogManager

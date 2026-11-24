@@ -196,14 +196,14 @@ class _ReversePageState extends State<ReversePage> {
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton(
+                    child: ElevatedButton(
                       onPressed: () => _open(true),
                       child: const Text('仅查看'),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: ElevatedButton(
+                    child: OutlinedButton(
                       onPressed: () => _open(false),
                       child: const Text('远程控制'),
                     ),
