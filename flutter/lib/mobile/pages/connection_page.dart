@@ -18,6 +18,7 @@ import '../../consts.dart';
 import '../../models/model.dart';
 import '../../models/platform_model.dart';
 import 'home_page.dart';
+import 'reverse_page.dart';
 
 /// Connection page for connecting to a remote peer.
 class ConnectionPage extends StatefulWidget implements PageShape {
@@ -96,6 +97,18 @@ class _ConnectionPageState extends State<ConnectionPage> {
             delegate: SliverChildListDelegate([
           if (!bind.isCustomClient() && !isIOS)
             Obx(() => _buildUpdateUI(stateGlobal.updateUrl.value)),
+          if (isAndroid)
+            OutlinedButton.icon(
+              onPressed: () {
+                final port = int.tryParse(bind.mainGetOptionSync(
+                        key: 'reverse-port')) ??
+                    23456;
+                final pin = bind.mainGetOptionSync(key: 'reverse-pin');
+                Get.to(() => ReversePage(port: port, pinnedPk: pin));
+              },
+              icon: const Icon(Icons.swap_horiz),
+              label: const Text('Reverse connection'),
+            ),
           _buildRemoteIDTextField(),
         ])),
         SliverFillRemaining(
