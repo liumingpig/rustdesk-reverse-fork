@@ -5629,6 +5629,26 @@ lazy_static::lazy_static! {
     static ref REVERSE_PENDING: Mutex<Option<(String, Stream, Vec<u8>)>> = Mutex::new(None);
     static ref REVERSE_PEER: Mutex<Option<String>> = Mutex::new(None);
     static ref REVERSE_ERROR: Mutex<Option<String>> = Mutex::new(None);
+    static ref REVERSE_LISTEN_ARGS: Mutex<Option<(u16, Vec<u8>)>> = Mutex::new(None);
+}
+
+/// Reserve the process-wide reverse listener. A second request with the same
+/// port and pinned key reuses the running listener; a different one is refused
+/// because rebinding the same port would fail anyway.
+pub fn reserve_reverse_listener(port: u16, pk: &[u8]) -> ResultType<bool> {
+    let mut args = REVERSE_LISTEN_ARGS.lock().unwrap();
+    match args.as_ref() {
+        Some((p, k)) if *p == port && k == pk => Ok(false),
+        Some((p, _)) => bail!("reverse listener already running on port {p}; restart the app to change"),
+        None => {
+            *args = Some((port, pk.to_vec()));
+            Ok(true)
+        }
+    }
+}
+
+pub fn release_reverse_listener() {
+    *REVERSE_LISTEN_ARGS.lock().unwrap() = None;
 }
 
 pub fn reset_reverse_listen_state() {

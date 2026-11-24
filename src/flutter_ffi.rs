@@ -1214,6 +1214,9 @@ pub fn main_reverse_listen(
     }
     let mut pk_bytes = [0u8; hbb_common::sodiumoxide::crypto::sign::PUBLICKEYBYTES];
     pk_bytes.copy_from_slice(&pk);
+    if !crate::client::reserve_reverse_listener(port as u16, &pk_bytes)? {
+        return Ok("listening".to_owned());
+    }
     crate::client::reset_reverse_listen_state();
     std::thread::spawn(move || {
         let result = match hbb_common::tokio::runtime::Runtime::new() {
@@ -1227,6 +1230,7 @@ pub fn main_reverse_listen(
             )),
         };
         if let Err(e) = result {
+            crate::client::release_reverse_listener();
             crate::client::set_reverse_listen_error(format!("{e}"));
         }
     });
