@@ -2253,14 +2253,26 @@ setEnvTerminalAdmin() {
   bind.mainSetEnv(key: 'IS_TERMINAL_ADMIN', value: 'Y');
 }
 
+String _lastReverseLink = '';
+DateTime? _lastReverseAt;
+
 // uri link handler
 bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
   final raw = (cmdArgs != null && cmdArgs.isNotEmpty) ? cmdArgs.first : uriString;
   final parsed = uri ?? (raw == null ? null : Uri.tryParse(raw));
   if (parsed != null && parsed.authority == 'reverse') {
+    final key = parsed.toString();
+    final now = DateTime.now();
+    if (key == _lastReverseLink &&
+        _lastReverseAt != null &&
+        now.difference(_lastReverseAt!).inSeconds < 5) {
+      return true;
+    }
     final port = int.tryParse(parsed.queryParameters['port'] ?? '') ?? 0;
     final pin = parsed.queryParameters['pin'] ?? '';
     if (port > 0 && port <= 65535 && pin.isNotEmpty) {
+      _lastReverseLink = key;
+      _lastReverseAt = now;
       Future.delayed(const Duration(milliseconds: 300), () {
         Get.to(() => ReversePage(port: port, pinnedPk: pin));
       });

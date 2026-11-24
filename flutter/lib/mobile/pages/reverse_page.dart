@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../common.dart';
@@ -27,6 +29,7 @@ class _ReversePageState extends State<ReversePage> {
   bool _waiting = false;
   String? _peerId;
   String? _error;
+  Timer? _poll;
 
   @override
   void initState() {
@@ -38,6 +41,7 @@ class _ReversePageState extends State<ReversePage> {
 
   @override
   void dispose() {
+    _poll?.cancel();
     _pinController.dispose();
     _portController.dispose();
     _passwordController.dispose();
@@ -60,19 +64,40 @@ class _ReversePageState extends State<ReversePage> {
       _error = null;
     });
     try {
-      final id = await bind.mainReverseListen(port: port, pinnedPk: pin);
+      await bind.mainReverseListen(port: port, pinnedPk: pin);
       if (!mounted) return;
-      setState(() {
-        _peerId = id;
-        _waiting = false;
-      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _waiting = false;
         _error = '$e';
       });
+      return;
     }
+    _poll?.cancel();
+    _poll = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (!mounted) {
+        _poll?.cancel();
+        return;
+      }
+      final err = bind.mainReverseError();
+      if (err.isNotEmpty) {
+        _poll?.cancel();
+        setState(() {
+          _waiting = false;
+          _error = err;
+        });
+        return;
+      }
+      final id = bind.mainReversePeer();
+      if (id.isNotEmpty) {
+        _poll?.cancel();
+        setState(() {
+          _peerId = id;
+          _waiting = false;
+        });
+      }
+    });
   }
 
   void _open(bool viewOnly) {

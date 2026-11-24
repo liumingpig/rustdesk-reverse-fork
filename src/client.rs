@@ -5627,6 +5627,26 @@ pub async fn reverse_accept(
 
 lazy_static::lazy_static! {
     static ref REVERSE_PENDING: Mutex<Option<(String, Stream, Vec<u8>)>> = Mutex::new(None);
+    static ref REVERSE_PEER: Mutex<Option<String>> = Mutex::new(None);
+    static ref REVERSE_ERROR: Mutex<Option<String>> = Mutex::new(None);
+}
+
+pub fn reset_reverse_listen_state() {
+    *REVERSE_PEER.lock().unwrap() = None;
+    *REVERSE_ERROR.lock().unwrap() = None;
+}
+
+pub fn set_reverse_listen_error(err: String) {
+    log::error!("reverse listen failed: {err}");
+    *REVERSE_ERROR.lock().unwrap() = Some(err);
+}
+
+pub fn reverse_peer() -> Option<String> {
+    REVERSE_PEER.lock().unwrap().clone()
+}
+
+pub fn reverse_error() -> Option<String> {
+    REVERSE_ERROR.lock().unwrap().clone()
 }
 
 /// Hand a secured reverse stream to the next session started for `peer_id`.
@@ -5642,6 +5662,7 @@ fn take_reverse_stream(peer_id: &str) -> Option<(Stream, Vec<u8>)> {
         .unwrap_or(false)
     {
         let (_, stream, pk) = pending.take().unwrap();
+        *REVERSE_PEER.lock().unwrap() = None;
         Some((stream, pk))
     } else {
         None
@@ -5657,6 +5678,7 @@ pub async fn reverse_listen_and_stash(
 ) -> ResultType<String> {
     let (stream, id) = reverse_listen(port, pinned_pk, expected_id).await?;
     stash_reverse_stream(id.clone(), stream, pinned_pk.0.to_vec());
+    *REVERSE_PEER.lock().unwrap() = Some(id.clone());
     Ok(id)
 }
 

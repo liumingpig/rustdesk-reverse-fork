@@ -1214,13 +1214,31 @@ pub fn main_reverse_listen(
     }
     let mut pk_bytes = [0u8; hbb_common::sodiumoxide::crypto::sign::PUBLICKEYBYTES];
     pk_bytes.copy_from_slice(&pk);
-    let rt = hbb_common::tokio::runtime::Runtime::new()
-        .map_err(|e| hbb_common::anyhow::anyhow!("failed to start reverse runtime: {e}"))?;
-    rt.block_on(crate::client::reverse_listen_and_stash(
-        port as u16,
-        hbb_common::sodiumoxide::crypto::sign::PublicKey(pk_bytes),
-        None,
-    ))
+    crate::client::reset_reverse_listen_state();
+    std::thread::spawn(move || {
+        let result = match hbb_common::tokio::runtime::Runtime::new() {
+            Ok(rt) => rt.block_on(crate::client::reverse_listen_and_stash(
+                port as u16,
+                hbb_common::sodiumoxide::crypto::sign::PublicKey(pk_bytes),
+                None,
+            )),
+            Err(e) => Err(hbb_common::anyhow::anyhow!(
+                "failed to start reverse runtime: {e}"
+            )),
+        };
+        if let Err(e) = result {
+            crate::client::set_reverse_listen_error(format!("{e}"));
+        }
+    });
+    Ok("listening".to_owned())
+}
+
+pub fn main_reverse_peer() -> String {
+    crate::client::reverse_peer().unwrap_or_default()
+}
+
+pub fn main_reverse_error() -> String {
+    crate::client::reverse_error().unwrap_or_default()
 }
 
 pub fn main_check_connect_status() {

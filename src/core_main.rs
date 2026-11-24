@@ -28,6 +28,28 @@ pub enum CoreMainAction {
     ExitFailure(hbb_common::anyhow::Error),
 }
 
+fn prepare_reverse_identity(password: Option<String>) {
+    let key_pair = config::Config::get_key_pair();
+    let id = config::Config::get_id();
+    let pk = hbb_common::sodiumoxide::base64::encode(
+        &key_pair.1,
+        hbb_common::sodiumoxide::base64::Variant::Original,
+    );
+    let path = config::Config::path("reverse_pk.txt");
+    if let Err(err) = std::fs::write(&path, format!("id={id}\npk={pk}\n")) {
+        log::error!("Failed to write {}: {err}", path.display());
+    }
+    println!("reverse-id={id}");
+    println!("reverse-pk={pk}");
+    if let Some(pw) = password {
+        if config::Config::set_permanent_password(&pw) {
+            log::info!("reverse permanent password set");
+        } else {
+            log::error!("failed to set reverse permanent password");
+        }
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn finish_macos_update(result: hbb_common::ResultType<()>) -> Option<CoreMainAction> {
     match result {
@@ -383,12 +405,18 @@ pub fn core_main() -> Option<CoreMainAction> {
             crate::start_os_service();
             return None;
         } else if args[0] == "--reverse-connect" {
-            if args.len() != 2 {
-                log::error!("Usage: --reverse-connect <ip:port>");
+            if args.len() < 2 {
+                log::error!("Usage: --reverse-connect <ip:port> [--password <pw>]");
                 return None;
             }
             log::info!("start --reverse-connect to {}", &args[1]);
             crate::set_reverse_endpoint(args[1].clone());
+            let password = args
+                .iter()
+                .position(|a| a == "--password")
+                .and_then(|i| args.get(i + 1))
+                .cloned();
+            prepare_reverse_identity(password);
             crate::start_server(true, false);
             return None;
         } else if args[0] == "--server" {

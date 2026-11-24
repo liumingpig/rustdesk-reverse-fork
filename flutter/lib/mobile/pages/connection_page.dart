@@ -7,6 +7,7 @@ import 'package:flutter_hbb/common/widgets/connection_page_title.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
+import 'package:uni_links/uni_links.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 
@@ -52,7 +53,12 @@ class _ConnectionPageState extends State<ConnectionPage> {
   Iterable<Peer> _autocompleteOpts = [];
 
   _ConnectionPageState() {
-    if (!isWeb) _uniLinksSubscription = listenUniLinks();
+    if (!isWeb) {
+      _uniLinksSubscription = listenUniLinks();
+      getInitialLink().then((link) {
+        if (link != null && link.isNotEmpty) handleUriLink(uriString: link);
+      });
+    }
     _idController.addListener(() {
       _idEmpty.value = _idController.text.isEmpty;
     });
