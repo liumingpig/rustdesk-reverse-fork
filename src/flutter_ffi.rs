@@ -1233,12 +1233,12 @@ pub fn main_reverse_listen(
     Ok("listening".to_owned())
 }
 
-pub fn main_reverse_peer() -> String {
-    crate::client::reverse_peer().unwrap_or_default()
+pub fn main_reverse_peer() -> SyncReturn<String> {
+    SyncReturn(crate::client::reverse_peer().unwrap_or_default())
 }
 
-pub fn main_reverse_error() -> String {
-    crate::client::reverse_error().unwrap_or_default()
+pub fn main_reverse_error() -> SyncReturn<String> {
+    SyncReturn(crate::client::reverse_error().unwrap_or_default())
 }
 
 pub fn main_check_connect_status() {
