@@ -696,8 +696,7 @@ pub fn check_zombie() {
 #[cfg(any(target_os = "android", target_os = "ios"))]
 #[tokio::main]
 pub async fn start_server(_is_server: bool) {
-    allow_err!(crate::trusted_devices::initialize());
-    crate::RendezvousMediator::start_all().await;
+    log::info!("controller-only build: host server disabled");
 }
 
 /// Start the host server that allows the remote peer to control the current machine.
