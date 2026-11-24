@@ -32,6 +32,7 @@ import '../consts.dart';
 import 'common/widgets/overlay.dart';
 import 'mobile/pages/file_manager_page.dart';
 import 'mobile/pages/remote_page.dart';
+import 'mobile/pages/reverse_page.dart';
 import 'mobile/pages/view_camera_page.dart';
 import 'mobile/pages/terminal_page.dart';
 import 'desktop/pages/remote_page.dart' as desktop_remote;
@@ -2254,6 +2255,19 @@ setEnvTerminalAdmin() {
 
 // uri link handler
 bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
+  final raw = (cmdArgs != null && cmdArgs.isNotEmpty) ? cmdArgs.first : uriString;
+  final parsed = uri ?? (raw == null ? null : Uri.tryParse(raw));
+  if (parsed != null && parsed.authority == 'reverse') {
+    final port = int.tryParse(parsed.queryParameters['port'] ?? '') ?? 0;
+    final pin = parsed.queryParameters['pin'] ?? '';
+    if (port > 0 && port <= 65535 && pin.isNotEmpty) {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        Get.to(() => ReversePage(port: port, pinnedPk: pin));
+      });
+      return true;
+    }
+    return false;
+  }
   List<String>? args;
   if (cmdArgs != null && cmdArgs.isNotEmpty) {
     args = cmdArgs;
