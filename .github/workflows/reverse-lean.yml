@@ -558,7 +558,7 @@ jobs:
       - name: Install dependencies
         run: |
           timeout 300 sudo apt-get install -y --no-install-recommends \
-               gcc-multilib g++-multilib libc6-dev-i386
+               gcc-multilib g++-multilib libc6-dev-i386 openjdk-17-jdk-headless
           curl -L -o /tmp/nasm.deb http://archive.ubuntu.com/ubuntu/pool/universe/n/nasm/nasm_2.16.01-1build1_amd64.deb
           sudo dpkg -i /tmp/nasm.deb
           nasm -v
