@@ -5682,6 +5682,38 @@ pub async fn reverse_listen_and_stash(
     Ok(id)
 }
 
+/// Accept reverse connections until cancelled. Each handshake runs in its own
+/// task so a stalled or unauthenticated peer cannot block the real controller,
+/// and a reconnect replaces the pending stream for the next session.
+pub async fn reverse_listen_loop(
+    port: u16,
+    pinned_pk: sign::PublicKey,
+    expected_id: Option<String>,
+) -> ResultType<()> {
+    let listener = hbb_common::tokio::net::TcpListener::bind(("::", port)).await?;
+    loop {
+        let (stream, addr) = listener.accept().await?;
+        let pinned_pk = pinned_pk.clone();
+        let expected_id = expected_id.clone();
+        tokio::spawn(async move {
+            let local_addr = match stream.local_addr() {
+                Ok(addr) => addr,
+                Err(_) => return,
+            };
+            let mut conn = Stream::from(stream, local_addr);
+            conn.set_max_packet_length(1024 * 1024);
+            match reverse_secure_handshake(&mut conn, &pinned_pk, expected_id.as_deref()).await {
+                Ok(id) => {
+                    conn.set_max_packet_length(usize::MAX);
+                    stash_reverse_stream(id.clone(), conn, pinned_pk.0.to_vec());
+                    *REVERSE_PEER.lock().unwrap() = Some(id);
+                }
+                Err(err) => log::warn!("reverse handshake from {addr} failed: {err}"),
+            }
+        });
+    }
+}
+
 async fn reverse_secure_handshake(
     conn: &mut Stream,
     pinned_pk: &sign::PublicKey,

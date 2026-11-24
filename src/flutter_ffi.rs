@@ -1217,7 +1217,7 @@ pub fn main_reverse_listen(
     crate::client::reset_reverse_listen_state();
     std::thread::spawn(move || {
         let result = match hbb_common::tokio::runtime::Runtime::new() {
-            Ok(rt) => rt.block_on(crate::client::reverse_listen_and_stash(
+            Ok(rt) => rt.block_on(crate::client::reverse_listen_loop(
                 port as u16,
                 hbb_common::sodiumoxide::crypto::sign::PublicKey(pk_bytes),
                 None,
