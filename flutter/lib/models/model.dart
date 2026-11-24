@@ -4125,7 +4125,7 @@ class FFI {
     int? display,
     List<int>? displays,
     String loginMethod = '',
-    bool viewOnly = false,
+    bool? viewOnly,
   }) {
     closed = false;
     if (isMobile) mobileReset();
@@ -4173,9 +4173,10 @@ class FFI {
         connToken: connToken,
         loginMethod: loginMethod,
       );
-      if (viewOnly &&
-          !bind.sessionGetToggleOptionSync(
-              sessionId: sessionId, arg: 'view-only')) {
+      if (viewOnly != null &&
+          bind.sessionGetToggleOptionSync(
+                  sessionId: sessionId, arg: 'view-only') !=
+              viewOnly) {
         bind.sessionToggleOption(sessionId: sessionId, value: 'view-only');
       }
     } else if (display != null) {
