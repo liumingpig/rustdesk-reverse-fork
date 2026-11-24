@@ -2256,6 +2256,17 @@ setEnvTerminalAdmin() {
 String _lastReverseLink = '';
 DateTime? _lastReverseAt;
 
+void openSavedReversePage() {
+  final pin = bind.mainGetOptionSync(key: 'reverse-pin');
+  final port = bind.mainGetOptionSync(key: 'reverse-port');
+  if (pin.isEmpty || port.isEmpty) {
+    return;
+  }
+  handleUriLink(
+      uriString:
+          'rustdesk://reverse?port=$port&pin=${Uri.encodeComponent(pin)}');
+}
+
 // uri link handler
 bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
   final raw = (cmdArgs != null && cmdArgs.isNotEmpty) ? cmdArgs.first : uriString;

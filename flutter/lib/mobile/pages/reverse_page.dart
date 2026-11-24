@@ -64,6 +64,10 @@ class _ReversePageState extends State<ReversePage> {
       _error = null;
     });
     try {
+      await bind.mainSetOption(key: 'reverse-pin', value: pin);
+      await bind.mainSetOption(key: 'reverse-port', value: '$port');
+    } catch (_) {}
+    try {
       await bind.mainReverseListen(port: port, pinnedPk: pin);
       if (!mounted) return;
     } catch (e) {

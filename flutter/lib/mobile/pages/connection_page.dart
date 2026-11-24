@@ -56,7 +56,11 @@ class _ConnectionPageState extends State<ConnectionPage> {
     if (!isWeb) {
       _uniLinksSubscription = listenUniLinks();
       getInitialLink().then((link) {
-        if (link != null && link.isNotEmpty) handleUriLink(uriString: link);
+        if (link != null && link.isNotEmpty) {
+          handleUriLink(uriString: link);
+        } else {
+          openSavedReversePage();
+        }
       });
     }
     _idController.addListener(() {
