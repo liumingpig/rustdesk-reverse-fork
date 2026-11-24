@@ -74,7 +74,8 @@ class RemotePage extends StatefulWidget {
       this.loginMethod = '',
       this.password,
       this.isSharedPassword,
-      this.forceRelay})
+      this.forceRelay,
+      this.viewOnly = false})
       : super(key: key);
 
   final String id;
@@ -82,6 +83,7 @@ class RemotePage extends StatefulWidget {
   final String? password;
   final bool? isSharedPassword;
   final bool? forceRelay;
+  final bool viewOnly;
 
   @override
   State<RemotePage> createState() => _RemotePageState(id);
@@ -130,6 +132,9 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       isSharedPassword: widget.isSharedPassword,
       forceRelay: widget.forceRelay,
     );
+    if (widget.viewOnly) {
+      bind.sessionToggleOption(sessionId: sessionId, value: 'view-only');
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
       gFFI.dialogManager
